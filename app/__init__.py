@@ -50,6 +50,7 @@ def missing_token_callback(error):
         'code': 'authorization_required'
     }), 401
 
+
 # Importar rutas después de crear la aplicación para evitar importaciones circulares
 from app.routes import admin, auth, users, products, categories, orders, inventory
 
@@ -90,5 +91,10 @@ def check_database_connection():
 # Verificar la conexión antes de iniciar el servidor
 check_database_connection()
 
+@app.route('/')
+def hello():
+    return "API de barrilfood funcionando correctamente con PostgreSQL y JWT!"
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host="0.0.0.0", port=port)
