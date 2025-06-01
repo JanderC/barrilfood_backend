@@ -52,7 +52,7 @@ def missing_token_callback(error):
 
 
 # Importar rutas después de crear la aplicación para evitar importaciones circulares
-from app.routes import admin, auth, users, products, categories, orders, inventory
+from app.routes import admin, auth, users, products, categories, orders, inventory, user_orders
 
 # Registrar blueprints
 app.register_blueprint(auth.bp)
@@ -62,6 +62,7 @@ app.register_blueprint(inventory.bp)
 app.register_blueprint(categories.bp)
 app.register_blueprint(orders.bp)
 app.register_blueprint(admin.bp)
+app.register_blueprint(user_orders.bp)
 
 # Crear función para inicializar el usuario administrador por defecto
 from app.services.auth_service import create_default_admin
