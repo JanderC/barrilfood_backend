@@ -1,33 +1,32 @@
 from sqlalchemy import func
 from app.models.order import OpcionSeleccionada, Pedido, MetodoPago, EstadoPedido   
-from app.models.order_detail import DetallesPedido
-from app.models.order_history import HistorialEstadosPedido
-from app.models.order_status import EstadosPedido
+from app.models.order import DetallePedido
+from app.models.order import DetallePedido, OpcionSeleccionada, HistorialEstadoPedido
 from app.models.product import Producto
 from app.models.review import Valoracion
 from app import db
-from datetime import datetime
+from datetime import datetime   
 import uuid
 
 class OrderService:
     def get_orders(self, usuario_id=None, estado_id=None, fecha_inicio=None, fecha_fin=None, repartidor_id=None):
         """Obtener pedidos con filtros opcionales"""
-        query = OpcionSeleccionada.query
+        query = Pedido.query
         
         # Aplicar filtros si están presentes
         if usuario_id:
-            query = query.filter(OpcionSeleccionada.usuario_id == usuario_id)
+            query = query.filter(Pedido.usuario_id == usuario_id)
         
         if estado_id:
-            query = query.filter(OpcionSeleccionada.estado_id == estado_id)
+            query = query.filter(Pedido.estado_id == estado_id)
         
         if repartidor_id:
-            query = query.filter(OpcionSeleccionada.repartidor_id == repartidor_id)
+            query = query.filter(Pedido.repartidor_id == repartidor_id)
         
         if fecha_inicio:
             try:
                 fecha_inicio_dt = datetime.strptime(fecha_inicio, '%Y-%m-%d')
-                query = query.filter(OpcionSeleccionada.fecha_pedido >= fecha_inicio_dt)
+                query = query.filter(Pedido.fecha_pedido >= fecha_inicio_dt)
             except ValueError:
                 pass
         
@@ -36,23 +35,22 @@ class OrderService:
                 fecha_fin_dt = datetime.strptime(fecha_fin, '%Y-%m-%d')
                 # Añadir un día para incluir todo el día especificado
                 fecha_fin_dt = fecha_fin_dt.replace(hour=23, minute=59, second=59)
-                query = query.filter(OpcionSeleccionada.fecha_pedido <= fecha_fin_dt)
+                query = query.filter(Pedido.fecha_pedido <= fecha_fin_dt)
             except ValueError:
                 pass
         
         # Ordenar por fecha, más recientes primero
-        return query.order_by(OpcionSeleccionada.fecha_pedido.desc()).all()
+        return query.order_by(Pedido.fecha_pedido.desc()).all()
     
     def get_order_by_id(self, order_id):
         """Obtener un pedido por su ID"""
-        return OpcionSeleccionada.query.get(order_id)
+        return Pedido.query.get(order_id)
     
     def create_order(self, order_data):
         """Crear un nuevo pedido"""
         try:
-            # Iniciar transacción
             # Crear pedido principal
-            new_order = OpcionSeleccionada(
+            new_order = Pedido(
                 usuario_id=order_data['usuario_id'],
                 direccion_id=order_data['direccion_id'],
                 estado_id=1,  # Estado inicial: pendiente
@@ -77,8 +75,8 @@ class OrderService:
                     db.session.rollback()
                     raise Exception(f"El producto {item['producto_id']} no está disponible")
                 
-                # Crear detalle de pedido
-                detail = DetallesPedido(
+                # CAMBIO: Usar DetallePedido en lugar de DetallesPedido
+                detail = DetallePedido(
                     pedido_id=new_order.id,
                     producto_id=item['producto_id'],
                     cantidad=item['cantidad'],
@@ -87,29 +85,27 @@ class OrderService:
                     notas=item.get('notas', '')
                 )
                 db.session.add(detail)
+                db.session.flush()  # IMPORTANTE: flush para obtener el ID del detalle
                 
                 # Agregar opciones seleccionadas si existen
                 if 'opciones' in item and item['opciones']:
                     for opcion in item['opciones']:
-                        from app.models.order_options import OpcionesSeleccionadas
-                        selected_option = OpcionesSeleccionadas(
+                        # CAMBIO: Usar OpcionSeleccionada directamente (ya importado)
+                        selected_option = OpcionSeleccionada(
                             detalle_pedido_id=detail.id,
                             opcion_id=opcion['opcion_id'],
                             precio=opcion['precio']
                         )
                         db.session.add(selected_option)
             
-            # Registrar el estado inicial en el historial
-            history_entry = HistorialEstadosPedido(
+            # CAMBIO: Usar HistorialEstadoPedido en lugar de HistorialEstadosPedido
+            history_entry = HistorialEstadoPedido(
                 pedido_id=new_order.id,
-                estado_id=1,  # pendiente
+                estado_id= 1,  # pendiente
                 usuario_id=order_data['usuario_id'],
                 notas="Pedido creado"
             )
             db.session.add(history_entry)
-            
-            # Actualizar inventario (si se implementa gestión de inventario)
-            # ...
             
             # Confirmar transacción
             db.session.commit()
@@ -126,7 +122,7 @@ class OrderService:
             raise Exception("Pedido no encontrado")
         
         # Verificar si el estado existe
-        estado = EstadosPedido.query.get(estado_id)
+        estado = EstadoPedido.query.get(estado_id)
         if not estado:
             raise Exception("Estado de pedido no válido")
         
@@ -139,7 +135,7 @@ class OrderService:
                 order.fecha_entrega_real = datetime.now()
             
             # Registrar cambio en el historial
-            history_entry = HistorialEstadosPedido(
+            history_entry = HistorialEstadoPedido(
                 pedido_id=order_id,
                 estado_id=estado_id,
                 usuario_id=usuario_id,
@@ -177,7 +173,7 @@ class OrderService:
                 order.estado_id = 5  # en camino
                 
                 # Registrar cambio en el historial
-                history_entry = HistorialEstadosPedido(
+                history_entry = HistorialEstadoPedido(
                     pedido_id=order_id,
                     estado_id=5,
                     usuario_id=repartidor_id,
@@ -207,7 +203,7 @@ class OrderService:
             order.estado_id = 7  # cancelado
             
             # Registrar cambio en el historial
-            history_entry = HistorialEstadosPedido(
+            history_entry = HistorialEstadoPedido(
                 pedido_id=order_id,
                 estado_id=7,
                 usuario_id=usuario_id,
@@ -227,14 +223,14 @@ class OrderService:
     
     def get_order_history(self, order_id):
         """Obtener historial de estados de un pedido"""
-        history = HistorialEstadosPedido.query.filter_by(pedido_id=order_id)\
-            .order_by(HistorialEstadosPedido.fecha.desc())\
+        history = HistorialEstadoPedido.query.filter_by(pedido_id=order_id)\
+            .order_by(HistorialEstadoPedido.fecha.desc())\
             .all()
         
         # Formatear resultados
         result = []
         for entry in history:
-            estado = EstadosPedido.query.get(entry.estado_id)
+            estado = EstadoPedido.query.get(entry.estado_id)
             from app.models.user import Usuario
             usuario = Usuario.query.get(entry.usuario_id)
             

@@ -144,3 +144,34 @@ def create_default_admin():
         print(f"Usuario administrador creado con email: {admin_email}")
     
     return admin
+
+class AuthService:
+    def get_user_role(self, user_id):
+        """Obtener el rol de un usuario por su ID"""
+        try:
+            user = User.query.get(user_id)
+            if not user:
+                return None
+            
+            # Obtener el rol basado en rol_id
+            role = Role.query.get(user.rol_id)
+            if not role:
+                return 'cliente'  # rol por defecto
+            
+            return role.nombre
+        except Exception as e:
+            print(f"Error al obtener rol del usuario: {e}")
+            return None
+    
+    def get_user_by_id(self, user_id):
+        """Obtener usuario por ID"""
+        try:
+            return User.query.get(user_id)
+        except Exception as e:
+            print(f"Error al obtener usuario: {e}")
+            return None
+    
+    def verify_user_permissions(self, user_id, required_roles):
+        """Verificar si un usuario tiene uno de los roles requeridos"""
+        user_role = self.get_user_role(user_id)
+        return user_role in required_roles if user_role else False

@@ -30,7 +30,7 @@ def employee_required(f):
     def decorated_function(*args, **kwargs):
         verify_jwt_in_request()  # Asegura que hay un token válido
         current_user_id = get_jwt_identity()
-        user = User.get_by_id(current_user_id)
+        user = User.query.get(current_user_id)
         
         if not user or (user.rol_id != 1 and user.rol_id != 2):  # 1=admin, 2=empleado
             return jsonify({'error': 'Se requieren privilegios de empleado o administrador'}), 403
@@ -47,7 +47,7 @@ def delivery_required(f):
     def decorated_function(*args, **kwargs):
         verify_jwt_in_request()  # Asegura que hay un token válido
         current_user_id = get_jwt_identity()
-        user = User.get_by_id(current_user_id)
+        user = User.query.get(current_user_id)
         
         if not user or (user.rol_id != 1 and user.rol_id != 3):  # 1=admin, 3=repartidor
             return jsonify({'error': 'Se requieren privilegios de repartidor o administrador'}), 403
