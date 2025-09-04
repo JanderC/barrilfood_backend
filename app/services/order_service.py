@@ -9,7 +9,7 @@ from datetime import datetime
 import uuid
 
 class OrderService:
-    def get_orders(self, usuario_id=None, estado_id=None, fecha_inicio=None, fecha_fin=None, repartidor_id=None):
+    def get_orders(self, usuario_id=None, estado_id=None, fecha_inicio=None, fecha_fin=None, repartidor_id=None, include_product_details=False):
         """Obtener pedidos con filtros opcionales"""
         query = Pedido.query
         
@@ -40,11 +40,112 @@ class OrderService:
                 pass
         
         # Ordenar por fecha, más recientes primero
-        return query.order_by(Pedido.fecha_pedido.desc()).all()
+        orders = query.order_by(Pedido.fecha_pedido.desc()).all()
+        
+        # Si se requieren detalles de productos, los incluimos
+        if include_product_details:
+            return self._format_orders_with_product_details(orders)
+        
+        return orders
+    
+    def _format_orders_with_product_details(self, orders):
+        """Formatear pedidos incluyendo detalles de productos"""
+        formatted_orders = []
+        
+        for order in orders:
+            # Información básica del pedido
+            order_data = {
+                'id': str(order.id),
+                'usuario_id': str(order.usuario_id),
+                'direccion_id': order.direccion_id,
+                'estado_id': order.estado_id,
+                'estado_nombre': order.estado.nombre if order.estado else None,
+                'metodo_pago_id': order.metodo_pago_id,
+                'metodo_pago_nombre': order.metodo_pago.nombre if order.metodo_pago else None,
+                'fecha_pedido': order.fecha_pedido.isoformat(),
+                'fecha_entrega_estimada': order.fecha_entrega_estimada.isoformat() if order.fecha_entrega_estimada else None,
+                'fecha_entrega_real': order.fecha_entrega_real.isoformat() if order.fecha_entrega_real else None,
+                'subtotal': float(order.subtotal),
+                'costo_envio': float(order.costo_envio),
+                'descuento': float(order.descuento),
+                'impuestos': float(order.impuestos),
+                'total': float(order.total),
+                'notas': order.notas,
+                'repartidor_id': str(order.repartidor_id) if order.repartidor_id else None,
+                'codigo_seguimiento': order.codigo_seguimiento,
+                'created_at': order.created_at.isoformat(),
+                'updated_at': order.updated_at.isoformat(),
+                'productos': []
+            }
+            
+            # Obtener detalles de productos para este pedido
+            for detalle in order.detalles:
+                if detalle.producto:
+                    producto_data = {
+                        'producto_id': detalle.producto.id,
+                        'nombre': detalle.producto.nombre,
+                        'descripcion': detalle.producto.descripcion,
+                        'precio': float(detalle.producto.precio),
+                        'precio_unitario': float(detalle.precio_unitario),
+                        'cantidad': detalle.cantidad,
+                        'subtotal': float(detalle.subtotal),
+                        'imagen_url': detalle.producto.imagen_url,
+                        'tiempo_preparacion': detalle.producto.tiempo_preparacion,
+                        'notas': detalle.notas,
+                        'opciones_seleccionadas': []
+                    }
+                    
+                    # Agregar opciones seleccionadas si existen
+                    for opcion_sel in detalle.opciones_seleccionadas:
+                        if opcion_sel.opcion:
+                            producto_data['opciones_seleccionadas'].append({
+                                'opcion_id': opcion_sel.opcion.id,
+                                'nombre': opcion_sel.opcion.nombre,
+                                'precio': float(opcion_sel.precio)
+                            })
+                    
+                    order_data['productos'].append(producto_data)
+            
+            # Calcular tiempo total de preparación
+            tiempo_total_preparacion = sum(
+                (producto['tiempo_preparacion'] or 0) * producto['cantidad'] 
+                for producto in order_data['productos']
+            )
+            order_data['tiempo_total_preparacion'] = tiempo_total_preparacion
+            
+            formatted_orders.append(order_data)
+        
+        return formatted_orders
+    
+    def get_orders_with_products(self, usuario_id=None, estado_id=None, fecha_inicio=None, fecha_fin=None, repartidor_id=None):
+        """Método específico para obtener pedidos con detalles de productos"""
+        return self.get_orders(
+            usuario_id=usuario_id,
+            estado_id=estado_id,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
+            repartidor_id=repartidor_id,
+            include_product_details=True
+        )
+    
+    def get_pending_orders_with_products(self, usuario_id=None):
+        """Obtener pedidos pendientes con detalles de productos"""
+        return self.get_orders_with_products(
+            usuario_id=usuario_id,
+            estado_id=1  # Estado pendiente
+        )
     
     def get_order_by_id(self, order_id):
         """Obtener un pedido por su ID"""
         return Pedido.query.get(order_id)
+    
+    def get_order_by_id_with_products(self, order_id):
+        """Obtener un pedido por su ID con detalles de productos"""
+        order = Pedido.query.get(order_id)
+        if not order:
+            return None
+        
+        return self._format_orders_with_product_details([order])[0]
     
     def create_order(self, order_data):
         """Crear un nuevo pedido"""

@@ -20,31 +20,80 @@ def get_orders():
     estado_id = request.args.get('estado_id', type=int)
     fecha_inicio = request.args.get('fecha_inicio')
     fecha_fin = request.args.get('fecha_fin')
+    include_products = request.args.get('include_products', 'false').lower() == 'true'
     
     # Verificar si el usuario puede ver todos los pedidos o solo los suyos
     from app.services.auth_service import AuthService
     auth_service = AuthService()
     user_role = auth_service.get_user_role(user_id)
     
-    if user_role in ['administrador', 'empleado', 'repartidor']:
-        # Administradores, empleados y repartidores pueden ver todos los pedidos
-        orders = order_service.get_orders(
-            estado_id=estado_id,
-            fecha_inicio=fecha_inicio,
-            fecha_fin=fecha_fin,
-            repartidor_id=request.args.get('repartidor_id') if user_role in ['administrador', 'empleado'] else None
-        )
-    else:
-        # Clientes solo pueden ver sus propios pedidos
-        orders = order_service.get_orders(
-            usuario_id=user_id,
-            estado_id=estado_id,
-            fecha_inicio=fecha_inicio,
-            fecha_fin=fecha_fin
-        )
+    try:
+        if user_role in ['administrador', 'empleado', 'repartidor']:
+            # Administradores, empleados y repartidores pueden ver todos los pedidos
+            if include_products:
+                orders = order_service.get_orders_with_products(
+                    estado_id=estado_id,
+                    fecha_inicio=fecha_inicio,
+                    fecha_fin=fecha_fin,
+                    repartidor_id=request.args.get('repartidor_id') if user_role in ['administrador', 'empleado'] else None
+                )
+                return jsonify(orders), 200
+            else:
+                orders = order_service.get_orders(
+                    estado_id=estado_id,
+                    fecha_inicio=fecha_inicio,
+                    fecha_fin=fecha_fin,
+                    repartidor_id=request.args.get('repartidor_id') if user_role in ['administrador', 'empleado'] else None
+                )
+                order_schema = OrderSchema(many=True)
+                return jsonify(order_schema.dump(orders)), 200
+        else:
+            # Clientes solo pueden ver sus propios pedidos
+            if include_products:
+                orders = order_service.get_orders_with_products(
+                    usuario_id=user_id,
+                    estado_id=estado_id,
+                    fecha_inicio=fecha_inicio,
+                    fecha_fin=fecha_fin
+                )
+                return jsonify(orders), 200
+            else:
+                orders = order_service.get_orders(
+                    usuario_id=user_id,
+                    estado_id=estado_id,
+                    fecha_inicio=fecha_inicio,
+                    fecha_fin=fecha_fin
+                )
+                order_schema = OrderSchema(many=True)
+                return jsonify(order_schema.dump(orders)), 200
     
-    order_schema = OrderSchema(many=True)
-    return jsonify(order_schema.dump(orders)), 200
+    except Exception as e:
+        return jsonify({'message': f'Error al obtener pedidos: {str(e)}'}), 500
+
+# Obtener pedidos pendientes con productos (nuevo endpoint específico)
+@bp.route('/pending-with-products', methods=['GET'])
+@jwt_required()
+def get_pending_orders_with_products():
+    """Obtener pedidos pendientes con detalles de productos"""
+    user_id = get_jwt_identity()
+    
+    # Verificar rol del usuario
+    from app.services.auth_service import AuthService
+    auth_service = AuthService()
+    user_role = auth_service.get_user_role(user_id)
+    
+    try:
+        if user_role in ['administrador', 'empleado', 'repartidor']:
+            # Personal del restaurante puede ver todos los pedidos pendientes
+            orders = order_service.get_pending_orders_with_products()
+        else:
+            # Clientes solo ven sus pedidos pendientes
+            orders = order_service.get_pending_orders_with_products(usuario_id=user_id)
+        
+        return jsonify(orders), 200
+    
+    except Exception as e:
+        return jsonify({'message': f'Error al obtener pedidos pendientes: {str(e)}'}), 500
 
 # Obtener un pedido por ID
 @bp.route('/<uuid:order_id>', methods=['GET'])
@@ -52,22 +101,34 @@ def get_orders():
 def get_order(order_id):
     """Obtener detalles de un pedido específico"""
     user_id = get_jwt_identity()
+    include_products = request.args.get('include_products', 'false').lower() == 'true'
     
     # Verificar si el usuario puede ver este pedido
     from app.services.auth_service import AuthService
     auth_service = AuthService()
     user_role = auth_service.get_user_role(user_id)
     
-    order = order_service.get_order_by_id(order_id)
-    if not order:
-        return jsonify({'message': 'Pedido no encontrado'}), 404
+    try:
+        if include_products:
+            order = order_service.get_order_by_id_with_products(order_id)
+        else:
+            order = order_service.get_order_by_id(order_id)
+            if order:
+                order_schema = OrderSchema()
+                order = order_schema.dump(order)
+        
+        if not order:
+            return jsonify({'message': 'Pedido no encontrado'}), 404
+        
+        # Verificar permisos de acceso
+        order_user_id = order.get('usuario_id') if include_products else str(order.usuario_id)
+        if user_role not in ['administrador', 'empleado', 'repartidor'] and order_user_id != user_id:
+            return jsonify({'message': 'No tienes permiso para ver este pedido'}), 403
+        
+        return jsonify(order), 200
     
-    # Verificar permisos de acceso
-    if user_role not in ['administrador', 'empleado', 'repartidor'] and str(order.usuario_id) != user_id:
-        return jsonify({'message': 'No tienes permiso para ver este pedido'}), 403
-    
-    order_schema = OrderSchema()
-    return jsonify(order_schema.dump(order)), 200
+    except Exception as e:
+        return jsonify({'message': f'Error al obtener pedido: {str(e)}'}), 500
 
 # Crear un nuevo pedido
 @bp.route('', methods=['POST'])
@@ -202,8 +263,11 @@ def get_order_history(order_id):
     if user_role not in ['administrador', 'empleado', 'repartidor'] and str(order.usuario_id) != user_id:
         return jsonify({'message': 'No tienes permiso para ver este pedido'}), 403
     
-    history = order_service.get_order_history(order_id)
-    return jsonify(history), 200
+    try:
+        history = order_service.get_order_history(order_id)
+        return jsonify(history), 200
+    except Exception as e:
+        return jsonify({'message': f'Error al obtener historial: {str(e)}'}), 500
 
 # Añadir valoración a un pedido completado
 @bp.route('/<uuid:order_id>/review', methods=['POST'])
