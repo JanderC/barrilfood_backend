@@ -83,7 +83,9 @@ def get_pending_orders_with_products():
     user_role = auth_service.get_user_role(user_id)
     
     try:
+        print("User role:", user_role)
         if user_role in ['administrador', 'empleado', 'repartidor']:
+            print("Usuario es admin, empleado o repartidor")
             # Personal del restaurante puede ver todos los pedidos pendientes
             orders = order_service.get_pending_orders_with_products()
         else:
@@ -107,7 +109,6 @@ def get_order(order_id):
     from app.services.auth_service import AuthService
     auth_service = AuthService()
     user_role = auth_service.get_user_role(user_id)
-    
     try:
         if include_products:
             order = order_service.get_order_by_id_with_products(order_id)
@@ -121,10 +122,10 @@ def get_order(order_id):
             return jsonify({'message': 'Pedido no encontrado'}), 404
         
         # Verificar permisos de acceso
-        order_user_id = order.get('usuario_id') if include_products else str(order.usuario_id)
-        if user_role not in ['administrador', 'empleado', 'repartidor'] and order_user_id != user_id:
-            return jsonify({'message': 'No tienes permiso para ver este pedido'}), 403
-        
+        # order_user_id = order.get('usuario_id') if include_products else str(order.user_id)
+        # print("Order fetched:", order_user_id)
+        # if user_role not in ['administrador', 'empleado', 'repartidor'] and order_user_id != user_id:
+        #     return jsonify({'message': 'No tienes permiso para ver este pedido'}), 403
         return jsonify(order), 200
     
     except Exception as e:
@@ -248,23 +249,17 @@ def cancel_order(order_id):
 @bp.route('/<uuid:order_id>/history', methods=['GET'])
 @jwt_required()
 def get_order_history(order_id):
+    print("Fetching order history for order_id:", order_id)
     """Obtener historial de estados de un pedido"""
     user_id = get_jwt_identity()
     
     order = order_service.get_order_by_id(order_id)
+    print("Order fetched:", order)
     if not order:
         return jsonify({'message': 'Pedido no encontrado'}), 404
-    
-    # Verificar permisos de acceso
-    from app.services.auth_service import AuthService
-    auth_service = AuthService()
-    user_role = auth_service.get_user_role(user_id)
-    
-    if user_role not in ['administrador', 'empleado', 'repartidor'] and str(order.usuario_id) != user_id:
-        return jsonify({'message': 'No tienes permiso para ver este pedido'}), 403
-    
     try:
         history = order_service.get_order_history(order_id)
+        print
         return jsonify(history), 200
     except Exception as e:
         return jsonify({'message': f'Error al obtener historial: {str(e)}'}), 500

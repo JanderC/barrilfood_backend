@@ -132,7 +132,6 @@ class OrderService:
         """Obtener pedidos pendientes con detalles de productos"""
         return self.get_orders_with_products(
             usuario_id=usuario_id,
-            estado_id=1  # Estado pendiente
         )
     
     def get_order_by_id(self, order_id):
@@ -332,8 +331,8 @@ class OrderService:
         result = []
         for entry in history:
             estado = EstadoPedido.query.get(entry.estado_id)
-            from app.models.user import Usuario
-            usuario = Usuario.query.get(entry.usuario_id)
+            from app.models.user import User
+            usuario = User.query.get(entry.usuario_id)
             
             result.append({
                 'id': entry.id,
