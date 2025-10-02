@@ -17,7 +17,7 @@ app = Flask(__name__)
 
 # Configuración
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'clave-secreta-por-defecto')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://postgres:admin@localhost:5432/barrilfood')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://postgres:p4ng34t3ch@200.40.68.122/barrilfood')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False    
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'jwt-secret-clave')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = 86400  # 24 horas
