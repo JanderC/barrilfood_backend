@@ -14,13 +14,13 @@ class Config:
 class DevelopmentConfig(Config):
     """Configuración de desarrollo"""
     DEBUG = True
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'postgresql://postgres:admin@localhost:5432/barrilfood')
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'postgresql://postgres:p4ng34t3ch@200.40.68.122/barrilfood')
 
 class TestingConfig(Config):
     """Configuración de pruebas"""
     DEBUG = True
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = os.getenv('TEST_DATABASE_URL', 'postgresql://postgres:admin@localhost:5432/barrilfood_test')
+    SQLALCHEMY_DATABASE_URI = os.getenv('TEST_DATABASE_URL', 'postgresql://postgres:p4ng34t3ch@200.40.68.122/barrilfood')
 
 class ProductionConfig(Config):
     """Configuración de producción"""
